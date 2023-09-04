@@ -112,7 +112,32 @@ public enum CliArgDef {
     AUTHTOKEN("token", "auth-token",
             "String: API operation authorization code",
             "API operation authorization code,"
-                    + " required when adding or modifying, optional when querying");
+                    + " required when adding or modifying, optional when querying"),
+
+    TUBEMQMETHOD(null, "tubeMqMethod", "String: Operation type", "add delete update query"),
+    // TOPIC CRUD
+    TOPICNAME(null, "topicName", "String: The name of topic", ""),
+    DELETEWHEN(null, "deleteWhen", "String: Topic data deletion time", ""),
+    DELETEPOLICY(null, "deletePolicy", "String: Delete Policy", ""),
+    NUMPARTITIONS(null, "numPartitions", "Integer: The number of partitions for the topic on this broker", ""),
+    UNFLUSHTHRESHOLD(null, "unflushThreshold", "Integer: Maximum allowed number of unflush messages", ""),
+    UNFLUSHINTERVAL(null, "unflushInterval", "Integer: Maximum allowed non flush interval time", ""),
+    UNFLUSHDATAHOLD(null, "unflushDataHold", "Integer: Maximum allowed unflush data size", ""),
+    NUMTOPICSTORES(null, "numTopicStores",
+            "Integer: Number of Topic data blocks and partition management groups allowed to be established", ""),
+    MEMCACHEMSGCNTINK(null, "memCacheMsgCntInK", "Integer: Default maximum memory cache packet size", ""),
+    MEMCACHEMSGSIZEINMB(null, "memCacheMsgSizeInMB", "Integer: the name of topic", ""),
+    MEMCACHEFLUSHINTVL(null, "memCacheFlushIntvl", "Integer: Maximum allowed waiting refresh interval for memory cache",
+            ""),
+    ACCEPTPUBLISH(null, "acceptPublish", "Boolean: Does the topic receive publishing requests", ""),
+    ACCEPTSUBSCRIBE(null, "acceptSubscribe", "Boolean: Does the topic receive subscription requests", ""),
+    MAXMSGSIZEINMB(null, "maxMsgSizeInMB", "Integer: Maximum message packet length setting", ""),
+    CREATEUSER(null, "createUser", "String: Topic Creator", ""),
+    CREATEDATE(null, "createDate", "String: Creation date", ""),
+    TOPICSTATUS(null,"topicStatus","Integer: The status of topic",""),
+
+    SENDMESSAGE(null, "sendMessage", "String: The Message to produce", ""),
+    ;
 
     CliArgDef(String opt, String longOpt, String optDesc) {
         this(opt, longOpt, false, "", optDesc);
