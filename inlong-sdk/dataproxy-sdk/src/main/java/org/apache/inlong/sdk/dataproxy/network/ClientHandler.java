@@ -42,6 +42,9 @@ public class ClientHandler extends SimpleChannelInboundHandler<EncodeObject> {
         try {
             EncodeObject encodeObject = e;
             logger.debug("Channel = {} , msgType = {}", ctx.channel(), encodeObject.getMsgtype());
+            if (encodeObject.getMsgtype()==9){
+                clientMgr.processServerInfoMsg(encodeObject);
+            }
             if (encodeObject.getMsgtype() != 8) {
                 sender.notifyFeedback(ctx.channel(), encodeObject);
             } else {

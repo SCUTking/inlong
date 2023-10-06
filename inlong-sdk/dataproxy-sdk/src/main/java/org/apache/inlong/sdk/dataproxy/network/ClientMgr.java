@@ -286,15 +286,18 @@ public class ClientMgr {
      */
     private boolean initConnection(HostInfo host) {
         NettyClient client = clientMap.get(host);
+        //如果client已经创建了 并且可用
         if (client != null && client.isActive()) {
             logger.info("this client {} has open!", host.getHostName());
             throw new IllegalStateException(
                     "The channel has already been opened");
         }
         client = new NettyClient(bootstrap, host.getHostName(),
-                host.getPortNumber(), configure);
+                host.getPortNumber(), configure,host.getWeight());
+        //获取Netty连接情况
         boolean bSuccess = client.connect();
 
+        //判断是否达到设置的活跃连接数量  未达到创建Data连接  达到了创建HB连接
         if (clientMapData.size() < aliveConnections) {
             // create data channel
             if (bSuccess) {
@@ -430,6 +433,22 @@ public class ClientMgr {
         return client;
     }
 
+    public ArrayList<Integer> getIndexWeightList(){
+        ArrayList<Integer> indexLists = new ArrayList<>();
+        int currSize = clientList.size();
+        for (int i = 0; i < currSize; i++) {
+            NettyClient tempClient = clientList.get(i);
+            int weight = tempClient.getWeight();
+            if (weight<=0){
+                break;
+            }
+            for (int j = 0; j < weight; j++) {
+                indexLists.add(i);
+            }
+        }
+        return indexLists;
+    }
+
     public synchronized NettyClient getClientByWeightRoundRobin() {
         NettyClient client = null;
         double maxWeight = Double.MIN_VALUE;
@@ -437,12 +456,14 @@ public class ClientMgr {
         if (clientList.isEmpty()) {
             return null;
         }
-        int currSize = clientList.size();
-        for (int retryTime = 0; retryTime < currSize; retryTime++) {
-            currentIndex = (++currentIndex) % currSize;
-            client = clientList.get(currentIndex);
+        ArrayList<Integer> indexList = getIndexWeightList();
+        int indexCurrSize =indexList.size();
+
+        for (int retryTime = 0; retryTime < indexCurrSize; retryTime++) {
+            currentIndex = (++currentIndex) % indexCurrSize;
+            client = clientList.get(indexList.get(currentIndex));
             if (client != null && client.isActive() && client.getWeight() > maxWeight) {
-                clientId = currentIndex;
+                clientId = indexList.get(currentIndex);
             }
         }
         if (client == null || !client.isActive()) {
@@ -451,23 +472,27 @@ public class ClientMgr {
         return clientList.get(clientId);
     }
 
-    // public synchronized NettyClient getClientByWeightLeastConnections(){}
+//     public synchronized NettyClient getClientByWeightLeastConnections(){}
 
     public synchronized NettyClient getClientByWeightRandom() {
         NettyClient client;
-        double maxWeight = Double.MIN_VALUE;
         int clientId = 0;
         if (clientList.isEmpty()) {
             return null;
         }
         int currSize = clientList.size();
+
+        ArrayList<Integer> indexList = getIndexWeightList();
+        int indexCurrSize =indexList.size();
+
         int maxRetry = this.configure.getMaxRetry();
         Random random = new Random(System.currentTimeMillis());
         do {
             int randomId = random.nextInt();
-            client = clientList.get(randomId % currSize);
+            Integer index = indexList.get(randomId % indexCurrSize);
+            client = clientList.get(index);
             if (client != null && client.isActive()) {
-                clientId = randomId;
+                clientId = index;
                 break;
             }
             maxRetry--;
@@ -477,6 +502,49 @@ public class ClientMgr {
         }
         return clientList.get(clientId);
     }
+
+    //最大的空闲内存优先
+    private synchronized NettyClient getClientByMostFreeMemory() {
+        NettyClient client;
+        if (clientList.isEmpty()) {
+            return null;
+        }
+        //发送消息到服务端
+        sendMsgToGetServerInfo();
+
+        //自定义比较器
+        Comparator<NettyClient> comparator = new Comparator<NettyClient>() {
+            @Override
+            public int compare(NettyClient o1, NettyClient o2) {
+                return o1.getFreeMemory()- o2.getFreeMemory();
+            }
+        };
+
+        client= Collections.max(clientList, comparator);
+        return client;
+    }
+
+    //最少CPU占用优先
+    private synchronized NettyClient getClientByLeastCPUUsage() {
+        NettyClient client;
+        if (clientList.isEmpty()) {
+            return null;
+        }
+        //发送消息到服务端
+        sendMsgToGetServerInfo();
+
+        //自定义比较器
+        Comparator<NettyClient> comparator = new Comparator<NettyClient>() {
+            @Override
+            public int compare(NettyClient o1, NettyClient o2) {
+                return Double.compare(o1.getCpuUsage(),o2.getCpuUsage());
+            }
+        };
+
+        client= Collections.min(clientList, comparator);
+        return client;
+    }
+
 
     public NettyClient getContainProxy(String proxyip) {
         if (proxyip == null) {
@@ -751,6 +819,43 @@ public class ClientMgr {
         }
     }
 
+    public void processServerInfoMsg(EncodeObject encodeObject){
+        int currSize = clientList.size();
+        for (int i = 0; i < currSize; i++) {
+            NettyClient client = clientList.get(i);
+            if (client.getServerIP().equals(encodeObject.getDpIp())){
+                client.setCpuUsage(encodeObject.getCpuUsage());
+                client.setFreeMemory(encodeObject.getFreeMemory());
+                break;
+            }
+        }
+
+    }
+
+    private void sendMsgToGetServerInfo(){
+        if (clientList.isEmpty()) {
+            logger.info("clientList is empty");
+            return;
+        }
+        int currSize = clientList.size();
+        for (int i = 0; i < currSize; i++) {
+            NettyClient client = clientList.get(i);
+            logger.debug("Send getServerInfo msg to server {} ", client.getServerIP());
+            String msg = "getServerInfo:" + client.getServerIP();
+            EncodeObject encodeObject = new EncodeObject(msg.getBytes(StandardCharsets.UTF_8),
+                    9, false, false, false, System.currentTimeMillis() / 1000, 1, "", "", "");
+            try {
+                if (configure.isNeedAuthentication()) {
+                    encodeObject.setAuth(configure.isNeedAuthentication(),
+                            configure.getUserName(), configure.getSecretKey());
+                }
+                client.write(encodeObject);
+            } catch (Throwable e) {
+                logger.error("sendMsg to " + client.getServerIP()
+                        + " exception {}, {}", e.toString(), e.getStackTrace());
+            }
+        }
+    }
     /**
      * fill up client with hb client
      */
@@ -986,6 +1091,7 @@ public class ClientMgr {
 
     }
 
+
     private List<HostInfo> getRealHosts(List<HostInfo> hostList, int realSize) {
         if (realSize > hostList.size()) {
             return hostList;
@@ -1003,23 +1109,39 @@ public class ClientMgr {
         NettyClient client = null;
         switch (loadBalance) {
             case RANDOM:
+                //随机
                 client = getClientByRandom();
                 break;
             case CONSISTENCY_HASH:
+                //一致性哈希
                 client = getClientByConsistencyHash(encodeObject.getMessageId());
                 break;
             case ROBIN:
+                //轮询
                 client = getClientByRoundRobin();
                 break;
             case WEIGHT_ROBIN:
+                //加权轮询
                 client = getClientByWeightRoundRobin();
                 break;
             case WEIGHT_RANDOM:
+                //加权随机
                 client = getClientByWeightRandom();
+                break;
+            case LEAST_CPU_USAGE:
+                //最小CPU占用优先
+                client = getClientByLeastCPUUsage();
+                break;
+            case MOST_FREE_MEMORY:
+                //最大空闲内存优先
+                client = getClientByMostFreeMemory();
                 break;
         }
         return client;
     }
+
+
+
 
     private class SendHBThread extends Thread {
 
@@ -1055,5 +1177,7 @@ public class ClientMgr {
             }
         }
     }
+
+
 
 }

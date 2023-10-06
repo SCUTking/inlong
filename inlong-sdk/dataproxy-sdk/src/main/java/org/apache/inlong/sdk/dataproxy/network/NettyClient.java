@@ -47,6 +47,34 @@ public class NettyClient {
     private String serverIP;
     private int serverPort;
 
+    private Double cpuUsage;
+    private int freeMemory;
+    private int weight;
+
+    public void setWeight(int weight) {
+        this.weight = weight;
+    }
+
+    public int getWeight() {
+        return weight;
+    }
+
+    public int getFreeMemory() {
+        return freeMemory;
+    }
+
+    public void setFreeMemory(int freeMemory) {
+        this.freeMemory = freeMemory;
+    }
+
+    public Double getCpuUsage() {
+        return cpuUsage;
+    }
+
+    public void setCpuUsage(Double cpuUsage) {
+        this.cpuUsage = cpuUsage;
+    }
+
     public String getServerIP() {
         return serverIP;
     }
@@ -56,11 +84,12 @@ public class NettyClient {
     }
 
     public NettyClient(Bootstrap bootstrap, String serverIP,
-            int serverPort, ProxyClientConfig configure) {
+            int serverPort, ProxyClientConfig configure,int weight) {
         this.bootstrap = bootstrap;
         this.serverIP = serverIP;
         this.serverPort = serverPort;
         this.configure = configure;
+        this.weight=weight;
         setState(ConnState.INIT);
     }
 
@@ -72,11 +101,13 @@ public class NettyClient {
         this.channel = channel;
     }
 
+    //连接到服务端
     public boolean connect() {
         // Connect to server.
 
         setState(ConnState.INIT);
         final CountDownLatch awaitLatch = new CountDownLatch(1);
+        //使用Netty连接服务器
         ChannelFuture future = bootstrap.connect(new InetSocketAddress(
                 serverIP, serverPort));
         future.addListener(new ChannelFutureListener() {
@@ -174,6 +205,7 @@ public class NettyClient {
         INIT, READY, FROZEN, DEAD, BUSY
     }
 
+    //发送消息到服务端
     public ChannelFuture write(EncodeObject encodeObject) {
         // TODO Auto-generated method stub
         ChannelFuture future = null;
@@ -218,10 +250,10 @@ public class NettyClient {
         setState(ConnState.BUSY);
     }
 
-    public double getWeight() {
-        OperatingSystemMXBean operatingSystemMXBean =
-                (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
-        return operatingSystemMXBean.getSystemLoadAverage();
-    }
+//    public double getWeight() {
+//        OperatingSystemMXBean operatingSystemMXBean =
+//                (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+//        return operatingSystemMXBean.getSystemLoadAverage();
+//    }
 
 }
