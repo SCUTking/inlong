@@ -30,6 +30,7 @@ public enum MsgType {
     MSG_MULTI_BODY_ATTR(6),
     MSG_BIN_MULTI_BODY(7),
     MSG_BIN_HEARTBEAT(8),
+    MSG_SERVER_INFO(9),
     MSG_UNKNOWN(-1);
 
     private final int value;

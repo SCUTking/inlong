@@ -23,7 +23,10 @@ public enum LoadBalance {
     ROBIN("robin", 1),
     CONSISTENCY_HASH("consistency hash", 2),
     WEIGHT_RANDOM("weight random", 3),
-    WEIGHT_ROBIN("weight robin", 4);
+    WEIGHT_ROBIN("weight robin", 4),
+
+    LEAST_CPU_USAGE("least CPU usage",5),
+    MOST_FREE_MEMORY("most free memory",6);
 
     private String name;
     private int index;

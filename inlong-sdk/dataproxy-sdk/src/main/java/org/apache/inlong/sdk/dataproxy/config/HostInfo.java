@@ -24,11 +24,13 @@ public class HostInfo implements Comparable<HostInfo>, java.io.Serializable {
     private final String referenceName;
     private final String hostName;
     private final int portNumber;
+    private final int weight;
 
-    public HostInfo(String referenceName, String hostName, int portNumber) {
+    public HostInfo(String referenceName, String hostName, int portNumber,int weight) {
         this.referenceName = referenceName;
         this.hostName = hostName;
         this.portNumber = portNumber;
+        this.weight=weight;
     }
 
     public String getReferenceName() {
@@ -41,6 +43,10 @@ public class HostInfo implements Comparable<HostInfo>, java.io.Serializable {
 
     public int getPortNumber() {
         return portNumber;
+    }
+
+    public int getWeight() {
+        return weight;
     }
 
     @Override

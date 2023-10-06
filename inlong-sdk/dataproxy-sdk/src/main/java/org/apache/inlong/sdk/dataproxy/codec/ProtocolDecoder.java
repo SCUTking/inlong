@@ -30,6 +30,7 @@ public class ProtocolDecoder extends MessageToMessageDecoder<ByteBuf> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ProtocolDecoder.class);
 
+    //解码器  服务端的信息进行解码
     @Override
     protected void decode(ChannelHandlerContext ctx,
             ByteBuf buffer, List<Object> out) throws Exception {
@@ -107,6 +108,31 @@ public class ProtocolDecoder extends MessageToMessageDecoder<ByteBuf> {
             EncodeObject object = new EncodeObject(attrs);
             object.setMsgtype(8);
             object.setLoad(load);
+            out.add(object);
+        }else if (msgType==9){
+            // binTotalLen = mstType + dataTime + bodyLen + body
+
+
+            // calculate total length
+            // binTotalLen = mstType + dataTime + bodyLen + body + attrsLen + attrs
+            //int binTotalLen = 1 + 4 + 4 + 8 + 2 +attrsLen;
+
+            buffer.skipBytes(4 + 4); // skip datatime and body_len
+
+            double cpuUsage = buffer.readDouble();
+            int freeMemory = buffer.readInt();
+
+            int attrLen = buffer.readShort();
+            byte[] attrBytes = null;
+            if (attrLen > 0) {
+                attrBytes = new byte[attrLen];
+                buffer.readBytes(attrBytes);
+            }
+            String attrs = (attrBytes == null ? "" : new String(attrBytes, StandardCharsets.UTF_8));
+            EncodeObject object = new EncodeObject(attrs);
+            object.setCpuUsage(cpuUsage);
+            object.setFreeMemory(freeMemory);
+            object.setMsgtype(9);
             out.add(object);
         }
     }

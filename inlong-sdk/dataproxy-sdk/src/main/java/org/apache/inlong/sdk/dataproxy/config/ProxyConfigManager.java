@@ -653,7 +653,7 @@ public class ProxyConfigManager extends Thread {
                 continue;
             }
             String refId = proxy.getIp() + ":" + proxy.getPort();
-            hostMap.put(refId, new HostInfo(refId, proxy.getIp(), proxy.getPort()));
+            hostMap.put(refId, new HostInfo(refId, proxy.getIp(), proxy.getPort(),proxy.getWeight()));
 
         }
         if (hostMap.isEmpty()) {

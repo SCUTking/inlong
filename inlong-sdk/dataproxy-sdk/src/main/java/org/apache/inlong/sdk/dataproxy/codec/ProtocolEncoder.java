@@ -65,6 +65,9 @@ public class ProtocolEncoder extends MessageToMessageEncoder<EncodeObject> {
             if (object.getMsgtype() == 8) {
                 buf = writeToBuf8(object);
             }
+            if (object.getMsgtype() == 9) {
+                buf = writeToBuf9(object);
+            }
         } catch (Exception e) {
             logger.error("{}", e.getMessage());
             e.printStackTrace();
@@ -74,6 +77,20 @@ public class ProtocolEncoder extends MessageToMessageEncoder<EncodeObject> {
         } else {
             logger.warn("write buf is null !");
         }
+    }
+
+    private ByteBuf writeToBuf9(EncodeObject object) {
+        ByteBuf buf = null;
+        try {
+            int msgType = 9;
+            int totalLength = 1;
+            buf = ByteBufAllocator.DEFAULT.buffer(4 + totalLength);
+            buf.writeInt(totalLength);
+            buf.writeByte(msgType);
+        } catch (Exception e) {
+            logger.error(e.getMessage());
+        }
+        return buf;
     }
 
     private ByteBuf writeToBuf8(EncodeObject object) {
@@ -322,7 +339,7 @@ public class ProtocolEncoder extends MessageToMessageEncoder<EncodeObject> {
     /*
      * private ChannelBuffer writeToBuf4(EncodeObject object) { ChannelBuffer buf = ChannelBuffers.dynamicBuffer(); try
      * { int totalLength = 1 + 4 + 4; byte[] body = null;
-     * 
+     *
      * //send single message one time if (object.getBodyBytes() != null && object.getBodyBytes().length != 0) { body =
      * object.getBodyBytes(); } totalLength = totalLength + body.length +
      * object.getAttributes().getBytes("utf8").length; buf.writeInt(totalLength); buf.writeByte(4);

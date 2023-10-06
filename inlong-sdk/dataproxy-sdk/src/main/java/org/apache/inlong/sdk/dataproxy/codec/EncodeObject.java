@@ -68,6 +68,9 @@ public class EncodeObject {
     private String errMsg;
     private String dpIp;
 
+    private Double cpuUsage;
+    private int freeMemory;
+
     /* Used by de_serialization. msgtype=7/8 */
     public EncodeObject(String attributes) {
         handleAttr(attributes);
@@ -464,5 +467,22 @@ public class EncodeObject {
 
     public SendResult getSendResult() {
         return sendResult;
+    }
+
+
+    public Double getCpuUsage() {
+        return cpuUsage;
+    }
+
+    public void setCpuUsage(Double cpuUsage) {
+        this.cpuUsage = cpuUsage;
+    }
+
+    public int getFreeMemory() {
+        return freeMemory;
+    }
+
+    public void setFreeMemory(int freeMemory) {
+        this.freeMemory = freeMemory;
     }
 }

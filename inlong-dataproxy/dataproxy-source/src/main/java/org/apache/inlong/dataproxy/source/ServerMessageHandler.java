@@ -52,6 +52,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.OperatingSystemMXBean;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -94,6 +96,7 @@ public class ServerMessageHandler extends ChannelInboundHandlerAdapter {
         this.source = source;
     }
 
+    //netty 服务端处理客户端发送过来的信息
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (msg == null) {
@@ -103,6 +106,7 @@ public class ServerMessageHandler extends ChannelInboundHandlerAdapter {
         ByteBuf cb = (ByteBuf) msg;
         try {
             int readableLength = cb.readableBytes();
+            //可读区域为零
             if (readableLength == 0 && source.isFilterEmptyMsg()) {
                 cb.clear();
                 source.fileMetricIncSumStats(StatConstants.EVENT_MSG_READABLE_EMPTY);
@@ -139,6 +143,7 @@ public class ServerMessageHandler extends ChannelInboundHandlerAdapter {
                 }
             } else {
                 // process v0 messages
+                // process msgType in {-1,,8}
                 Channel channel = ctx.channel();
                 MsgType msgType = MsgType.valueOf(msgTypeValue);
                 final long msgRcvTime = System.currentTimeMillis();
@@ -157,6 +162,16 @@ public class ServerMessageHandler extends ChannelInboundHandlerAdapter {
                     procBinHeartbeatMsg(source, channel, cb, totalDataLen);
                     return;
                 }
+
+
+                //process msgType in {9}
+                if(MsgType.MSG_SERVER_INFO==msgType){
+                    //send server info to client
+                    flushServerMsgPackage(source,channel,buildServerMsgRspPackage(),MsgType.MSG_SERVER_INFO.name());
+                    return;
+                }
+
+
                 // process msgType in {2,3,4,5,6,7}
                 AbsV0MsgCodec msgCodec;
                 String strRemoteIP = AddressUtils.getChannelRemoteIP(channel);
@@ -667,10 +682,11 @@ public class ServerMessageHandler extends ChannelInboundHandlerAdapter {
         }
         // allocate buffer and write fields
         ByteBuf binBuffer = ByteBufAllocator.DEFAULT.buffer(4 + binTotalLen);
-        binBuffer.writeInt(binTotalLen);
+        binBuffer.writeInt(binTotalLen);//每次都将数据长度给放到前面
         binBuffer.writeByte(MsgType.MSG_BIN_HEARTBEAT.getValue());
         binBuffer.writeInt((int) (System.currentTimeMillis() / 1000));
         binBuffer.writeByte(version);
+        //body  4+2
         binBuffer.writeInt(2);
         binBuffer.writeShort(loadValue);
         if (null != attrData) {
@@ -696,7 +712,7 @@ public class ServerMessageHandler extends ChannelInboundHandlerAdapter {
     }
 
     private void flushV0MsgPackage(BaseSource source, Channel channel,
-            ByteBuf binBuffer, String orgAttr) throws Exception {
+                                   ByteBuf binBuffer, String orgAttr) throws Exception {
         if (channel == null || !channel.isWritable()) {
             // release allocated ByteBuf
             binBuffer.release();
@@ -708,4 +724,61 @@ public class ServerMessageHandler extends ChannelInboundHandlerAdapter {
         }
         channel.writeAndFlush(binBuffer);
     }
+
+
+    //构建服务端返回信息
+    private ByteBuf buildServerMsgRspPackage() {
+
+
+        //获取服务端的IP
+        // build return attribute string
+        StringBuilder strBuff = new StringBuilder();
+        strBuff.append(ConfigConstants.DATAPROXY_IP_KEY)
+                .append(AttributeConstants.KEY_VALUE_SEPARATOR).append(source.getSrcHost());
+
+        String attrs =strBuff.toString();
+        int attrsLen = attrs.length();
+
+        // calculate total length
+        // binTotalLen = mstType + dataTime + bodyLen + body + attrsLen + attrs
+        int binTotalLen = 1 + 4 + 4 + 8 + 2 +attrsLen;
+
+        // allocate buffer and write fields
+        ByteBuf buffer = ByteBufAllocator.DEFAULT.buffer(4 + binTotalLen);
+        buffer.writeInt(binTotalLen);//每次都将数据长度给放到前面
+        buffer.writeByte(MsgType.MSG_SERVER_INFO.getValue());
+        buffer.writeInt((int) (System.currentTimeMillis() / 1000));
+        buffer.writeInt(8);
+
+
+        //将CPU占用率等信息传给客户端
+        OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
+        double cpuUsage = osBean.getSystemLoadAverage();
+        buffer.writeDouble(cpuUsage);
+
+        //获取剩余内存信息传给客户端
+        Runtime runtime = Runtime.getRuntime();
+        long freeMemory = runtime.freeMemory();
+        buffer.writeInt((int) freeMemory/(1024*1024));//单位是MB
+
+        buffer.writeShort(attrsLen);
+        buffer.writeBytes(attrs.getBytes(StandardCharsets.UTF_8));
+        return buffer;
+    }
+
+    //获取服务端节点的CPU占用等信息
+    private void flushServerMsgPackage(BaseSource source, Channel channel,
+                                   ByteBuf binBuffer, String orgAttr) throws Exception {
+        if (channel == null || !channel.isWritable()) {
+            // release allocated ByteBuf
+            binBuffer.release();
+            source.fileMetricIncSumStats(StatConstants.EVENT_LINK_UNWRITABLE);
+            if (logCounter.shouldPrint()) {
+                logger.warn("Send msg but channel full, attr={}, channel={}", orgAttr, channel);
+            }
+            throw new ChannelUnWritableException("Send response but channel full");
+        }
+        channel.writeAndFlush(binBuffer);
+    }
+
 }
